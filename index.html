@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NotTooLate</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+–bg: #0e0e12;
+–card: #16161d;
+–card-hover: #1c1c26;
+–border: #2a2a38;
+–text: #e8e6f0;
+–text-dim: #8886a0;
+–accent: #f0a050;
+–accent-glow: #f0a05030;
+–danger: #e85050;
+–today: #50e8a0;
+–today-glow: #50e8a020;
+–soon: #f0d060;
+}
+
+html { font-size: 16px; }
+
+body {
+font-family: -apple-system, BlinkMacSystemFont, ‘Segoe UI’, system-ui, sans-serif;
+background: var(–bg);
+color: var(–text);
+min-height: 100dvh;
+overflow-x: hidden;
+}
+
+body::before {
+content: ‘’;
+position: fixed;
+top: -50%; left: -50%;
+width: 200%; height: 200%;
+background: radial-gradient(ellipse at 30% 20%, rgba(240,160,80,0.03) 0%, transparent 50%),
+radial-gradient(ellipse at 70% 80%, rgba(80,232,160,0.02) 0%, transparent 50%);
+pointer-events: none;
+z-index: 0;
+}
+
+.container {
+position: relative;
+z-index: 1;
+max-width: 520px;
+margin: 0 auto;
+padding: 40px 20px 100px;
+}
+
+header { text-align: center; margin-bottom: 40px; }
+
+header h1 {
+font-family: Georgia, ‘Times New Roman’, serif;
+font-size: 2.4rem;
+font-weight: 800;
+background: linear-gradient(135deg, var(–accent), #f0d060, var(–today));
+-webkit-background-clip: text;
+-webkit-text-fill-color: transparent;
+background-clip: text;
+letter-spacing: -0.02em;
+margin-bottom: 6px;
+}
+
+header p { color: var(–text-dim); font-size: 0.9rem; font-weight: 300; }
+
+/* Lang switcher */
+.lang-switch {
+position: absolute;
+top: 20px;
+right: 20px;
+display: flex;
+gap: 0;
+border-radius: 8px;
+overflow: hidden;
+border: 1px solid var(–border);
+z-index: 10;
+}
+
+.lang-btn {
+padding: 6px 12px;
+background: var(–card);
+border: none;
+font-family: inherit;
+font-size: 0.75rem;
+font-weight: 600;
+color: var(–text-dim);
+cursor: pointer;
+transition: all 0.2s;
+letter-spacing: 0.04em;
+}
+
+.lang-btn:hover { color: var(–text); }
+.lang-btn.active {
+background: var(–accent);
+color: var(–bg);
+}
+
+.form-card {
+background: var(–card);
+border: 1px solid var(–border);
+border-radius: 16px;
+padding: 24px;
+margin-bottom: 32px;
+position: relative;
+overflow: visible;
+}
+
+.form-card h2 {
+font-size: 0.8rem;
+font-weight: 600;
+text-transform: uppercase;
+letter-spacing: 0.1em;
+color: var(–text-dim);
+margin-bottom: 20px;
+}
+
+.field-group { margin-bottom: 16px; }
+
+.field-group label {
+display: block;
+font-size: 0.75rem;
+font-weight: 500;
+color: var(–text-dim);
+margin-bottom: 8px;
+text-transform: uppercase;
+letter-spacing: 0.06em;
+}
+
+.input-wrap { position: relative; }
+
+.input-wrap input {
+width: 100%;
+background: var(–bg);
+border: 1px solid var(–border);
+border-radius: 10px;
+padding: 12px 16px;
+font-family: inherit;
+font-size: 1rem;
+color: var(–text);
+outline: none;
+transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input-wrap input:focus {
+border-color: var(–accent);
+box-shadow: 0 0 0 3px var(–accent-glow);
+}
+
+.input-wrap input::placeholder { color: var(–text-dim); opacity: 0.5; }
+
+.suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+.chip {
+display: inline-flex;
+align-items: center;
+gap: 5px;
+padding: 6px 14px;
+background: var(–bg);
+border: 1px solid var(–border);
+border-radius: 20px;
+font-family: inherit;
+font-size: 0.82rem;
+color: var(–text-dim);
+cursor: pointer;
+transition: all 0.2s;
+user-select: none;
+}
+
+.chip:hover {
+border-color: var(–accent);
+color: var(–text);
+background: var(–accent-glow);
+}
+
+.chip .emoji { font-size: 1rem; }
+
+.date-row { display: flex; gap: 12px; }
+.date-row .field-group { flex: 1; }
+
+.date-row select {
+width: 100%;
+background: var(–bg);
+border: 1px solid var(–border);
+border-radius: 10px;
+padding: 12px 16px;
+font-family: inherit;
+font-size: 1rem;
+color: var(–text);
+outline: none;
+cursor: pointer;
+appearance: none;
+-webkit-appearance: none;
+transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.date-row select:focus {
+border-color: var(–accent);
+box-shadow: 0 0 0 3px var(–accent-glow);
+}
+
+.type-chips { display: flex; gap: 8px; margin-bottom: 16px; }
+
+.type-chip {
+flex: 1;
+padding: 10px;
+text-align: center;
+background: var(–bg);
+border: 1px solid var(–border);
+border-radius: 10px;
+font-family: inherit;
+font-size: 0.8rem;
+color: var(–text-dim);
+cursor: pointer;
+transition: all 0.2s;
+}
+
+.type-chip:hover { border-color: var(–accent); color: var(–text); }
+.type-chip.active {
+border-color: var(–accent);
+background: var(–accent-glow);
+color: var(–accent);
+font-weight: 600;
+}
+
+.type-chip .t-emoji { display: block; font-size: 1.3rem; margin-bottom: 4px; }
+
+.btn-add {
+width: 100%;
+padding: 14px;
+background: linear-gradient(135deg, var(–accent), #e88840);
+border: none;
+border-radius: 12px;
+font-family: inherit;
+font-size: 1rem;
+font-weight: 600;
+color: var(–bg);
+cursor: pointer;
+transition: transform 0.15s, box-shadow 0.2s;
+margin-top: 8px;
+}
+
+.btn-add:hover { transform: translateY(-1px); box-shadow: 0 6px 24px var(–accent-glow); }
+.btn-add:active { transform: translateY(0); }
+
+.section-title {
+font-size: 0.8rem;
+font-weight: 600;
+text-transform: uppercase;
+letter-spacing: 0.1em;
+color: var(–text-dim);
+margin-bottom: 16px;
+display: flex;
+align-items: center;
+gap: 8px;
+}
+
+.section-title .count {
+background: var(–border);
+padding: 2px 8px;
+border-radius: 10px;
+font-size: 0.7rem;
+}
+
+.events-list { display: flex; flex-direction: column; gap: 8px; }
+
+.event-card {
+display: flex;
+align-items: center;
+gap: 14px;
+background: var(–card);
+border: 1px solid var(–border);
+border-radius: 14px;
+padding: 16px 18px;
+transition: all 0.2s;
+animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+from { opacity: 0; transform: translateY(10px); }
+to { opacity: 1; transform: translateY(0); }
+}
+
+.event-card:hover { background: var(–card-hover); }
+
+.event-card.is-today {
+border-color: var(–today);
+box-shadow: 0 0 20px var(–today-glow), inset 0 0 20px var(–today-glow);
+}
+
+.event-card.is-soon {
+border-color: var(–soon);
+box-shadow: 0 0 12px rgba(240,208,96,0.06);
+}
+
+.event-date-badge {
+flex-shrink: 0;
+width: 52px;
+height: 52px;
+border-radius: 12px;
+background: var(–bg);
+border: 1px solid var(–border);
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+line-height: 1;
+}
+
+.event-card.is-today .event-date-badge {
+background: var(–today);
+border-color: var(–today);
+color: var(–bg);
+}
+
+.event-date-badge .day { font-size: 1.3rem; font-weight: 700; }
+.event-date-badge .month {
+font-size: 0.6rem;
+font-weight: 500;
+text-transform: uppercase;
+letter-spacing: 0.05em;
+opacity: 0.7;
+margin-top: 2px;
+}
+
+.event-info { flex: 1; min-width: 0; }
+.event-name {
+font-weight: 500;
+font-size: 0.95rem;
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+}
+
+.event-meta { font-size: 0.75rem; color: var(–text-dim); margin-top: 3px; }
+.event-meta .days-left { color: var(–accent); font-weight: 500; }
+.event-card.is-today .event-meta .days-left { color: var(–today); }
+.event-card.is-soon .event-meta .days-left { color: var(–soon); }
+
+.event-delete {
+flex-shrink: 0;
+width: 32px;
+height: 32px;
+border-radius: 8px;
+border: none;
+background: transparent;
+color: var(–text-dim);
+cursor: pointer;
+display: flex;
+align-items: center;
+justify-content: center;
+opacity: 0;
+transition: all 0.2s;
+}
+
+.event-card:hover .event-delete { opacity: 1; }
+.event-delete:hover { background: rgba(232,80,80,0.12); color: var(–danger); }
+
+.notif-banner {
+background: #1a1a28;
+border: 1px solid var(–border);
+border-radius: 12px;
+padding: 14px 18px;
+margin-bottom: 24px;
+display: flex;
+align-items: center;
+gap: 12px;
+font-size: 0.85rem;
+color: var(–text-dim);
+cursor: pointer;
+transition: all 0.2s;
+}
+
+.notif-banner:hover { border-color: var(–accent); }
+.notif-banner .bell { font-size: 1.3rem; }
+
+.notif-banner .btn-enable {
+margin-left: auto;
+padding: 6px 14px;
+background: var(–accent);
+border: none;
+border-radius: 8px;
+font-family: inherit;
+font-size: 0.78rem;
+font-weight: 600;
+color: var(–bg);
+cursor: pointer;
+}
+
+.notif-banner.granted { display: none; }
+
+.empty-state { text-align: center; padding: 40px 20px; color: var(–text-dim); }
+.empty-state .big-emoji { font-size: 3rem; margin-bottom: 12px; }
+.empty-state p { font-size: 0.85rem; }
+
+.toast {
+position: fixed;
+bottom: 24px;
+left: 50%;
+transform: translateX(-50%) translateY(80px);
+background: var(–card);
+border: 1px solid var(–today);
+border-radius: 12px;
+padding: 12px 20px;
+font-family: inherit;
+font-size: 0.85rem;
+color: var(–text);
+z-index: 100;
+opacity: 0;
+transition: all 0.3s ease;
+pointer-events: none;
+white-space: nowrap;
+}
+
+.toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+@media (max-width: 480px) {
+.container { padding: 24px 16px 80px; }
+header h1 { font-size: 1.8rem; }
+.form-card { padding: 18px; }
+.lang-switch { top: 12px; right: 12px; }
+}
+</style>
+
+</head>
+<body>
+
+<div class="container">
+  <div class="lang-switch" id="langSwitch">
+    <button class="lang-btn" data-lang="ru">RU</button>
+    <button class="lang-btn" data-lang="en">EN</button>
+  </div>
+
+  <header>
+    <h1 id="appName">NotTooLate</h1>
+    <p id="subtitle"></p>
+  </header>
+
+  <div class="notif-banner" id="notifBanner">
+    <span class="bell">🔔</span>
+    <span id="notifText"></span>
+    <button class="btn-enable" id="notifBtn"></button>
+  </div>
+
+  <div class="form-card">
+    <h2 id="formTitle"></h2>
+
+```
+<div class="type-chips" id="typeChips">
+  <div class="type-chip active" data-type="birthday">
+    <span class="t-emoji">🎂</span><span class="type-label" data-key="typeBirthday"></span>
+  </div>
+  <div class="type-chip" data-type="anniversary">
+    <span class="t-emoji">💍</span><span class="type-label" data-key="typeAnniversary"></span>
+  </div>
+  <div class="type-chip" data-type="other">
+    <span class="t-emoji">⭐</span><span class="type-label" data-key="typeOther"></span>
+  </div>
+</div>
+
+<div class="field-group">
+  <label id="labelWho"></label>
+  <div class="input-wrap">
+    <input type="text" id="nameInput" autocomplete="off" />
+  </div>
+  <div class="suggestions" id="suggestions"></div>
+</div>
+
+<div class="date-row">
+  <div class="field-group">
+    <label id="labelDay"></label>
+    <select id="daySelect"></select>
+  </div>
+  <div class="field-group">
+    <label id="labelMonth"></label>
+    <select id="monthSelect"></select>
+  </div>
+</div>
+
+<button class="btn-add" id="btnAdd"></button>
+```
+
+  </div>
+
+  <div id="eventsSection" style="display:none">
+    <div class="section-title">
+      <span id="sectionTitle"></span> <span class="count" id="eventsCount">0</span>
+    </div>
+    <div class="events-list" id="eventsList"></div>
+  </div>
+
+  <div class="empty-state" id="emptyState">
+    <div class="big-emoji">🎈</div>
+    <p id="emptyText"></p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function() {
+  "use strict";
+
+  /* ── Storage ── */
+  var storageOk = false;
+  try { localStorage.setItem('_t', '1'); localStorage.removeItem('_t'); storageOk = true; } catch(e) {}
+  var memStore = {};
+  function storeGet(k) { if (storageOk) { try { return localStorage.getItem(k); } catch(e) {} } return memStore[k] !== undefined ? memStore[k] : null; }
+  function storeSet(k, v) { if (storageOk) { try { localStorage.setItem(k, v); } catch(e) {} } memStore[k] = v; }
+
+  /* ── Notification helpers ── */
+  function notifOk() { try { return 'Notification' in window && typeof Notification !== 'undefined'; } catch(e) { return false; } }
+  function notifPerm() { try { return Notification.permission; } catch(e) { return 'unsupported'; } }
+
+  /* ══════════════════════════════════════════
+     i18n
+     ══════════════════════════════════════════ */
+  var I18N = {
+    ru: {
+      appName: 'Ещё не поздно',
+      subtitle: 'Важные даты близких — не забудешь никого',
+      formTitle: 'Новая дата',
+      typeBirthday: 'День рождения',
+      typeAnniversary: 'Годовщина',
+      typeOther: 'Другое',
+      labelWho: 'Кого поздравляем',
+      placeholder: 'Имя или выберите ниже...',
+      labelDay: 'День',
+      labelMonth: 'Месяц',
+      btnAdd: 'Добавить',
+      sectionTitle: 'Ближайшие даты',
+      emptyText: 'Пока нет важных дат.\nДобавьте первую!',
+      notifPrompt: 'Включите уведомления, чтобы получать напоминания',
+      notifBtn: 'Включить',
+      notifUnsupported: 'Уведомления не поддерживаются в этом браузере',
+      notifEnabled: '🔔 Уведомления включены!',
+      notifBody: 'Теперь вы будете получать напоминания о важных датах!',
+      toastEmpty: 'Укажите название',
+      deleteTitle: 'Удалить',
+      today: 'Сегодня! 🎉',
+      tomorrow: 'Завтра',
+      inDaysFew: 'через {n} дня',
+      inDaysMany: 'через {n} дней',
+      notifToday: 'Сегодня {type} — {name}! Не забудьте поздравить! 🎉',
+      notifTomorrow: 'Завтра {type} — {name}! Подготовьте поздравление! 🎁',
+      notifSoon: 'Через {n} дн. {type} — {name}',
+      months: ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'],
+      monthsFull: ['Января','Февраля','Марта','Апреля','Мая','Июня','Июля','Августа','Сентября','Октября','Ноября','Декабря'],
+      typeLabels: { birthday: '🎂 День рождения', anniversary: '💍 Годовщина', other: '⭐ Важная дата' },
+      presets: {
+        birthday: [
+          { emoji: '👩', label: 'Мама' },
+          { emoji: '👨', label: 'Папа' },
+          { emoji: '👫', label: 'Брат' },
+          { emoji: '👭', label: 'Сестра' },
+          { emoji: '💑', label: 'Жена' },
+          { emoji: '💑', label: 'Муж' },
+          { emoji: '👵', label: 'Бабушка' },
+          { emoji: '👴', label: 'Дедушка' },
+          { emoji: '👶', label: 'Ребёнок' },
+          { emoji: '🧑‍🤝‍🧑', label: 'Друг' }
+        ],
+        anniversary: [
+          { emoji: '💒', label: 'Свадьба' },
+          { emoji: '💑', label: 'Годовщина знакомства' },
+          { emoji: '🏠', label: 'Новоселье' }
+        ],
+        other: [
+          { emoji: '📅', label: 'Памятная дата' },
+          { emoji: '🎓', label: 'Выпускной' },
+          { emoji: '🏆', label: 'Достижение' }
+        ]
+      }
+    },
+    en: {
+      subtitle: "Important dates for your loved ones — never forget anyone",
+      formTitle: 'New date',
+      typeBirthday: 'Birthday',
+      typeAnniversary: 'Anniversary',
+      typeOther: 'Other',
+      labelWho: 'Who to celebrate',
+      placeholder: 'Name or pick below...',
+      labelDay: 'Day',
+      labelMonth: 'Month',
+      btnAdd: 'Add',
+      sectionTitle: 'Upcoming dates',
+      emptyText: 'No important dates yet.\nAdd your first one!',
+      notifPrompt: 'Enable notifications to get reminders',
+      notifBtn: 'Enable',
+      notifUnsupported: 'Notifications are not supported in this browser',
+      notifEnabled: '🔔 Notifications enabled!',
+      notifBody: 'You will now receive reminders about important dates!',
+      toastEmpty: 'Enter a name',
+      deleteTitle: 'Delete',
+      today: 'Today! 🎉',
+      tomorrow: 'Tomorrow',
+      inDaysFew: 'in {n} days',
+      inDaysMany: 'in {n} days',
+      notifToday: "Today is {name}'s {type}! Don't forget to congratulate! 🎉",
+      notifTomorrow: "Tomorrow is {name}'s {type}! Prepare a greeting! 🎁",
+      notifSoon: "In {n} days — {name}'s {type}",
+      months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+      monthsFull: ['January','February','March','April','May','June','July','August','September','October','November','December'],
+      typeLabels: { birthday: '🎂 Birthday', anniversary: '💍 Anniversary', other: '⭐ Important date' },
+      presets: {
+        birthday: [
+          { emoji: '👩', label: 'Mom' },
+          { emoji: '👨', label: 'Dad' },
+          { emoji: '👫', label: 'Brother' },
+          { emoji: '👭', label: 'Sister' },
+          { emoji: '💑', label: 'Wife' },
+          { emoji: '💑', label: 'Husband' },
+          { emoji: '👵', label: 'Grandma' },
+          { emoji: '👴', label: 'Grandpa' },
+          { emoji: '👶', label: 'Child' },
+          { emoji: '🧑‍🤝‍🧑', label: 'Friend' }
+        ],
+        anniversary: [
+          { emoji: '💒', label: 'Wedding' },
+          { emoji: '💑', label: 'First met' },
+          { emoji: '🏠', label: 'Housewarming' }
+        ],
+        other: [
+          { emoji: '📅', label: 'Memorial date' },
+          { emoji: '🎓', label: 'Graduation' },
+          { emoji: '🏆', label: 'Achievement' }
+        ]
+      }
+    }
+  };
+
+  /* ── Detect language ── */
+  function detectLang() {
+    var saved = storeGet('ntl_lang');
+    if (saved === 'ru' || saved === 'en') return saved;
+    var nav = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
+    return nav.indexOf('ru') === 0 ? 'ru' : 'en';
+  }
+
+  var lang = detectLang();
+  function t(key) { return I18N[lang][key] || I18N['en'][key] || key; }
+
+  /* ── State ── */
+  var events = [];
+  try { events = JSON.parse(storeGet('reminder_events') || '[]'); } catch(e) { events = []; }
+  var currentType = 'birthday';
+
+  /* ── DOM refs ── */
+  var nameInput = document.getElementById('nameInput');
+  var daySelect = document.getElementById('daySelect');
+  var monthSelect = document.getElementById('monthSelect');
+  var suggestionsEl = document.getElementById('suggestions');
+  var eventsList = document.getElementById('eventsList');
+  var eventsSection = document.getElementById('eventsSection');
+  var emptyState = document.getElementById('emptyState');
+  var eventsCount = document.getElementById('eventsCount');
+  var toastEl = document.getElementById('toast');
+  var notifBanner = document.getElementById('notifBanner');
+  var notifTextEl = document.getElementById('notifText');
+  var notifBtnEl = document.getElementById('notifBtn');
+
+  /* ── Apply all translatable strings ── */
+  function applyLang() {
+    document.documentElement.lang = lang;
+
+    document.getElementById('appName').textContent = t('appName');
+    document.title = t('appName');
+    document.getElementById('subtitle').textContent = t('subtitle');
+    document.getElementById('formTitle').textContent = t('formTitle');
+    document.getElementById('labelWho').textContent = t('labelWho');
+    nameInput.placeholder = t('placeholder');
+    document.getElementById('labelDay').textContent = t('labelDay');
+    document.getElementById('labelMonth').textContent = t('labelMonth');
+    document.getElementById('btnAdd').textContent = t('btnAdd');
+    document.getElementById('sectionTitle').textContent = t('sectionTitle');
+
+    var emptyLines = t('emptyText').split('\n');
+    document.getElementById('emptyText').innerHTML = escHtml(emptyLines[0]) + '<br>' + escHtml(emptyLines[1] || '');
+
+    /* Type chips */
+    var labels = document.querySelectorAll('.type-label');
+    for (var i = 0; i < labels.length; i++) {
+      var key = labels[i].getAttribute('data-key');
+      if (key) labels[i].textContent = t(key);
+    }
+
+    /* Notification banner */
+    notifTextEl.textContent = t('notifPrompt');
+    notifBtnEl.textContent = t('notifBtn');
+
+    /* Lang buttons */
+    var btns = document.querySelectorAll('.lang-btn');
+    for (var j = 0; j < btns.length; j++) {
+      btns[j].classList.toggle('active', btns[j].getAttribute('data-lang') === lang);
+    }
+
+    /* Re-populate months */
+    populateMonths();
+    renderSuggestions();
+    renderEvents();
+    checkNotificationPermission();
+  }
+
+  /* ── Init ── */
+  function init() {
+    populateDays();
+    applyLang();
+    startNotificationCheck();
+    bindStaticEvents();
+  }
+
+  function bindStaticEvents() {
+    document.getElementById('btnAdd').addEventListener('click', addEvent);
+    notifBanner.addEventListener('click', requestNotifications);
+
+    var typeChips = document.querySelectorAll('.type-chip');
+    for (var i = 0; i < typeChips.length; i++) {
+      (function(chip) {
+        chip.addEventListener('click', function() { selectType(chip); });
+      })(typeChips[i]);
+    }
+
+    nameInput.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Enter') addEvent();
+    });
+
+    /* Lang switcher */
+    var langBtns = document.querySelectorAll('.lang-btn');
+    for (var j = 0; j < langBtns.length; j++) {
+      (function(btn) {
+        btn.addEventListener('click', function(ev) {
+          ev.stopPropagation();
+          var newLang = btn.getAttribute('data-lang');
+          if (newLang !== lang) {
+            lang = newLang;
+            storeSet('ntl_lang', lang);
+            applyLang();
+          }
+        });
+      })(langBtns[j]);
+    }
+  }
+
+  function populateDays() {
+    for (var d = 1; d <= 31; d++) {
+      var o = document.createElement('option');
+      o.value = d;
+      o.textContent = d;
+      daySelect.appendChild(o);
+    }
+    var now = new Date();
+    daySelect.value = now.getDate();
+  }
+
+  function populateMonths() {
+    var months = t('months');
+    var currentVal = monthSelect.value || (new Date().getMonth() + 1);
+    monthSelect.innerHTML = '';
+    for (var m = 0; m < months.length; m++) {
+      var o = document.createElement('option');
+      o.value = m + 1;
+      o.textContent = months[m];
+      monthSelect.appendChild(o);
+    }
+    monthSelect.value = currentVal;
+  }
+
+  function renderSuggestions() {
+    var presets = I18N[lang].presets;
+    var list = presets[currentType] || [];
+    suggestionsEl.innerHTML = '';
+    for (var i = 0; i < list.length; i++) {
+      (function(p) {
+        var chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.innerHTML = '<span class="emoji">' + p.emoji + '</span>' + escHtml(p.label);
+        chip.addEventListener('click', function() {
+          nameInput.value = p.label;
+          nameInput.focus();
+        });
+        suggestionsEl.appendChild(chip);
+      })(list[i]);
+    }
+  }
+
+  function selectType(el) {
+    var chips = document.querySelectorAll('.type-chip');
+    for (var i = 0; i < chips.length; i++) chips[i].classList.remove('active');
+    el.classList.add('active');
+    currentType = el.getAttribute('data-type');
+    renderSuggestions();
+  }
+
+  function addEvent() {
+    var name = nameInput.value.trim();
+    var day = parseInt(daySelect.value, 10);
+    var month = parseInt(monthSelect.value, 10);
+
+    if (!name) {
+      showToast(t('toastEmpty'));
+      nameInput.focus();
+      return;
+    }
+
+    events.push({ id: Date.now(), name: name, day: day, month: month, type: currentType });
+    save();
+    renderEvents();
+    nameInput.value = '';
+    showToast('\u2713 ' + name + ' \u2014 ' + day + ' ' + t('monthsFull')[month - 1]);
+  }
+
+  function removeEvent(id) {
+    events = events.filter(function(e) { return e.id !== id; });
+    save();
+    renderEvents();
+  }
+
+  function save() {
+    storeSet('reminder_events', JSON.stringify(events));
+  }
+
+  function daysUntil(day, month) {
+    var now = new Date();
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var target = new Date(now.getFullYear(), month - 1, day);
+    if (target < today) target = new Date(now.getFullYear() + 1, month - 1, day);
+    return Math.round((target - today) / 86400000);
+  }
+
+  function daysLeftText(dl) {
+    if (dl === 0) return t('today');
+    if (dl === 1) return t('tomorrow');
+    if (lang === 'ru' && dl <= 4) return t('inDaysFew').replace('{n}', dl);
+    return t('inDaysMany').replace('{n}', dl);
+  }
+
+  function renderEvents() {
+    if (events.length === 0) {
+      eventsSection.style.display = 'none';
+      emptyState.style.display = 'block';
+      return;
+    }
+
+    eventsSection.style.display = 'block';
+    emptyState.style.display = 'none';
+    eventsCount.textContent = events.length;
+
+    var sorted = events.slice().sort(function(a, b) {
+      return daysUntil(a.day, a.month) - daysUntil(b.day, b.month);
+    });
+
+    var months = t('months');
+    var typeLabels = I18N[lang].typeLabels;
+    eventsList.innerHTML = '';
+
+    for (var i = 0; i < sorted.length; i++) {
+      (function(e) {
+        var dl = daysUntil(e.day, e.month);
+        var isToday = dl === 0;
+        var isSoon = dl > 0 && dl <= 7;
+        var cls = isToday ? ' is-today' : isSoon ? ' is-soon' : '';
+        var typeLabel = typeLabels[e.type] || '\u2B50';
+
+        var card = document.createElement('div');
+        card.className = 'event-card' + cls;
+        card.innerHTML =
+          '<div class="event-date-badge">' +
+            '<span class="day">' + e.day + '</span>' +
+            '<span class="month">' + months[e.month - 1] + '</span>' +
+          '</div>' +
+          '<div class="event-info">' +
+            '<div class="event-name">' + escHtml(e.name) + '</div>' +
+            '<div class="event-meta">' + typeLabel + ' \u00B7 <span class="days-left">' + daysLeftText(dl) + '</span></div>' +
+          '</div>' +
+          '<button class="event-delete" data-del="' + e.id + '" title="' + t('deleteTitle') + '">' +
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
+          '</button>';
+        eventsList.appendChild(card);
+      })(sorted[i]);
+    }
+
+    var delBtns = eventsList.querySelectorAll('[data-del]');
+    for (var j = 0; j < delBtns.length; j++) {
+      (function(btn) {
+        btn.addEventListener('click', function(ev) {
+          ev.stopPropagation();
+          removeEvent(parseInt(btn.getAttribute('data-del'), 10));
+        });
+      })(delBtns[j]);
+    }
+  }
+
+  function escHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  var toastTimer;
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function() { toastEl.classList.remove('show'); }, 2500);
+  }
+
+  /* ── Notifications ── */
+  function checkNotificationPermission() {
+    if (!notifOk()) {
+      notifTextEl.textContent = t('notifUnsupported');
+      if (notifBtnEl) notifBtnEl.style.display = 'none';
+      notifBanner.style.cursor = 'default';
+      return;
+    }
+    if (notifPerm() === 'granted') {
+      notifBanner.classList.add('granted');
+    }
+  }
+
+  function requestNotifications() {
+    if (!notifOk()) return;
+    try {
+      Notification.requestPermission().then(function(p) {
+        if (p === 'granted') {
+          notifBanner.classList.add('granted');
+          showToast(t('notifEnabled'));
+          try { new Notification('NotTooLate', { body: t('notifBody') }); } catch(e) {}
+        }
+      });
+    } catch(e) {}
+  }
+
+  function sendNotification(evt, dl) {
+    if (notifPerm() !== 'granted') return;
+    var typeStr = (I18N[lang].typeLabels[evt.type] || '').toLowerCase();
+    var body;
+    if (dl === 0) body = t('notifToday').replace('{type}', typeStr).replace('{name}', evt.name);
+    else if (dl === 1) body = t('notifTomorrow').replace('{type}', typeStr).replace('{name}', evt.name);
+    else body = t('notifSoon').replace('{n}', dl).replace('{type}', typeStr).replace('{name}', evt.name);
+    try { new Notification('NotTooLate 🔔', { body: body, tag: 'event-' + evt.id + '-' + dl }); } catch(e) {}
+  }
+
+  function checkAndNotify() {
+    var lastCheck = storeGet('reminder_last_check');
+    var todayStr = new Date().toDateString();
+    if (lastCheck === todayStr) return;
+    storeSet('reminder_last_check', todayStr);
+    for (var i = 0; i < events.length; i++) {
+      var dl = daysUntil(events[i].day, events[i].month);
+      if (dl === 0 || dl === 1 || dl === 3 || dl === 7) sendNotification(events[i], dl);
+    }
+  }
+
+  function startNotificationCheck() {
+    checkAndNotify();
+    setInterval(checkAndNotify, 3600000);
+  }
+
+  init();
+})();
+</script>
+
+</body>
+</html>
