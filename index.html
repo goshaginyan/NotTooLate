@@ -5,6 +5,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NotTooLate</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NotTooLate">
+<meta name="theme-color" content="#0e0e12">
+<link rel="icon" type="image/svg+xml" href="icon-192.svg">
+<link rel="apple-touch-icon" href="icon-192.svg">
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -510,9 +517,29 @@ header h1 { font-size: 1.8rem; }
   function storeGet(k) { if (storageOk) { try { return localStorage.getItem(k); } catch(e) {} } return memStore[k] !== undefined ? memStore[k] : null; }
   function storeSet(k, v) { if (storageOk) { try { localStorage.setItem(k, v); } catch(e) {} } memStore[k] = v; }
 
+  /* ── Service Worker ── */
+  var swRegistration = null;
+  function registerSW() {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./service-worker.js').then(function(reg) {
+        swRegistration = reg;
+      }).catch(function() {});
+    }
+  }
+
   /* ── Notification helpers ── */
-  function notifOk() { try { return 'Notification' in window && typeof Notification !== 'undefined'; } catch(e) { return false; } }
+  function notifOk() {
+    try {
+      if ('Notification' in window && typeof Notification !== 'undefined') return true;
+      if ('serviceWorker' in navigator) return true;
+      return false;
+    } catch(e) { return false; }
+  }
   function notifPerm() { try { return Notification.permission; } catch(e) { return 'unsupported'; } }
+
+  /* ── iOS detection ── */
+  function isIos() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+  function isStandalone() { return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches; }
 
   /* ══════════════════════════════════════════
      i18n
@@ -535,6 +562,7 @@ header h1 { font-size: 1.8rem; }
       notifPrompt: 'Включите уведомления, чтобы получать напоминания',
       notifBtn: 'Включить',
       notifUnsupported: 'Уведомления не поддерживаются в этом браузере',
+      notifIosHint: 'Добавьте на главный экран для уведомлений: нажмите «Поделиться» ➜ «На экран Домой»',
       notifEnabled: '🔔 Уведомления включены!',
       notifBody: 'Теперь вы будете получать напоминания о важных датах!',
       toastEmpty: 'Укажите название',
@@ -591,6 +619,7 @@ header h1 { font-size: 1.8rem; }
       notifPrompt: 'Enable notifications to get reminders',
       notifBtn: 'Enable',
       notifUnsupported: 'Notifications are not supported in this browser',
+      notifIosHint: 'Add to Home Screen for notifications: tap Share ➜ Add to Home Screen',
       notifEnabled: '🔔 Notifications enabled!',
       notifBody: 'You will now receive reminders about important dates!',
       toastEmpty: 'Enter a name',
@@ -706,6 +735,7 @@ header h1 { font-size: 1.8rem; }
 
   /* ── Init ── */
   function init() {
+    registerSW();
     populateDays();
     applyLang();
     startNotificationCheck();
@@ -909,6 +939,12 @@ header h1 { font-size: 1.8rem; }
 
   /* ── Notifications ── */
   function checkNotificationPermission() {
+    if (isIos() && !isStandalone()) {
+      notifTextEl.textContent = t('notifIosHint');
+      if (notifBtnEl) notifBtnEl.style.display = 'none';
+      notifBanner.style.cursor = 'default';
+      return;
+    }
     if (!notifOk()) {
       notifTextEl.textContent = t('notifUnsupported');
       if (notifBtnEl) notifBtnEl.style.display = 'none';
@@ -927,7 +963,11 @@ header h1 { font-size: 1.8rem; }
         if (p === 'granted') {
           notifBanner.classList.add('granted');
           showToast(t('notifEnabled'));
-          try { new Notification('NotTooLate', { body: t('notifBody') }); } catch(e) {}
+          if (swRegistration) {
+            swRegistration.showNotification('NotTooLate', { body: t('notifBody'), icon: './icon-192.svg' });
+          } else {
+            try { new Notification('NotTooLate', { body: t('notifBody') }); } catch(e) {}
+          }
         }
       });
     } catch(e) {}
@@ -940,7 +980,12 @@ header h1 { font-size: 1.8rem; }
     if (dl === 0) body = t('notifToday').replace('{type}', typeStr).replace('{name}', evt.name);
     else if (dl === 1) body = t('notifTomorrow').replace('{type}', typeStr).replace('{name}', evt.name);
     else body = t('notifSoon').replace('{n}', dl).replace('{type}', typeStr).replace('{name}', evt.name);
-    try { new Notification('NotTooLate 🔔', { body: body, tag: 'event-' + evt.id + '-' + dl }); } catch(e) {}
+    var tag = 'event-' + evt.id + '-' + dl;
+    if (swRegistration) {
+      swRegistration.showNotification('NotTooLate 🔔', { body: body, tag: tag, icon: './icon-192.svg' });
+    } else {
+      try { new Notification('NotTooLate 🔔', { body: body, tag: tag }); } catch(e) {}
+    }
   }
 
   function checkAndNotify() {
