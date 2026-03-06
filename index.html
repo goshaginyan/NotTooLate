@@ -77,15 +77,14 @@ header p { color: var(--text-dim); font-size: 0.9rem; font-weight: 300; }
 
 /* Lang switcher */
 .lang-switch {
-position: absolute;
-top: 20px;
-right: 20px;
 display: flex;
 gap: 0;
 border-radius: 8px;
 overflow: hidden;
 border: 1px solid var(--border);
-z-index: 10;
+justify-content: center;
+width: fit-content;
+margin: 12px auto 0;
 }
 
 .lang-btn {
@@ -253,6 +252,26 @@ margin-top: 8px;
 
 .btn-add:hover { transform: translateY(-1px); box-shadow: 0 6px 24px var(--accent-glow); }
 .btn-add:active { transform: translateY(0); }
+
+.btn-toggle-form {
+width: 100%;
+padding: 14px;
+background: linear-gradient(135deg, var(--accent), #e88840);
+border: none;
+border-radius: 12px;
+font-family: inherit;
+font-size: 1rem;
+font-weight: 600;
+color: var(--bg);
+cursor: pointer;
+transition: transform 0.15s, box-shadow 0.2s;
+margin-bottom: 24px;
+display: none;
+}
+.btn-toggle-form:hover { transform: translateY(-1px); box-shadow: 0 6px 24px var(--accent-glow); }
+.btn-toggle-form:active { transform: translateY(0); }
+
+.form-card.collapsed { display: none; }
 
 .section-title {
 font-size: 0.8rem;
@@ -429,7 +448,6 @@ white-space: nowrap;
 .container { padding: 24px 16px 80px; }
 header h1 { font-size: 1.8rem; }
 .form-card { padding: 18px; }
-.lang-switch { top: 12px; right: 12px; }
 }
 </style>
 
@@ -437,14 +455,13 @@ header h1 { font-size: 1.8rem; }
 <body>
 
 <div class="container">
-  <div class="lang-switch" id="langSwitch">
-    <button class="lang-btn" data-lang="ru">RU</button>
-    <button class="lang-btn" data-lang="en">EN</button>
-  </div>
-
   <header>
     <h1 id="appName">NotTooLate</h1>
     <p id="subtitle"></p>
+    <div class="lang-switch" id="langSwitch">
+      <button class="lang-btn" data-lang="ru">RU</button>
+      <button class="lang-btn" data-lang="en">EN</button>
+    </div>
   </header>
 
   <div class="notif-banner" id="notifBanner">
@@ -453,7 +470,9 @@ header h1 { font-size: 1.8rem; }
     <button class="btn-enable" id="notifBtn"></button>
   </div>
 
-  <div class="form-card">
+  <button class="btn-toggle-form" id="btnToggleForm">+ <span id="toggleFormText"></span></button>
+
+  <div class="form-card" id="formCard">
     <h2 id="formTitle"></h2>
 
 <div class="type-chips" id="typeChips">
@@ -557,6 +576,7 @@ header h1 { font-size: 1.8rem; }
       labelDay: 'День',
       labelMonth: 'Месяц',
       btnAdd: 'Добавить',
+      btnNewDate: 'Добавить дату',
       sectionTitle: 'Ближайшие даты',
       emptyText: 'Пока нет важных дат.\nДобавьте первую!',
       notifPrompt: 'Включите уведомления, чтобы получать напоминания',
@@ -614,6 +634,7 @@ header h1 { font-size: 1.8rem; }
       labelDay: 'Day',
       labelMonth: 'Month',
       btnAdd: 'Add',
+      btnNewDate: 'Add date',
       sectionTitle: 'Upcoming dates',
       emptyText: 'No important dates yet.\nAdd your first one!',
       notifPrompt: 'Enable notifications to get reminders',
@@ -690,6 +711,9 @@ header h1 { font-size: 1.8rem; }
   var notifBanner = document.getElementById('notifBanner');
   var notifTextEl = document.getElementById('notifText');
   var notifBtnEl = document.getElementById('notifBtn');
+  var formCard = document.getElementById('formCard');
+  var btnToggleForm = document.getElementById('btnToggleForm');
+  var toggleFormText = document.getElementById('toggleFormText');
 
   /* ── Apply all translatable strings ── */
   function applyLang() {
@@ -704,6 +728,7 @@ header h1 { font-size: 1.8rem; }
     document.getElementById('labelDay').textContent = t('labelDay');
     document.getElementById('labelMonth').textContent = t('labelMonth');
     document.getElementById('btnAdd').textContent = t('btnAdd');
+    toggleFormText.textContent = t('btnNewDate');
     document.getElementById('sectionTitle').textContent = t('sectionTitle');
 
     var emptyLines = t('emptyText').split('\n');
@@ -742,9 +767,23 @@ header h1 { font-size: 1.8rem; }
     bindStaticEvents();
   }
 
+  function updateFormVisibility() {
+    if (events.length > 0) {
+      formCard.classList.add('collapsed');
+      btnToggleForm.style.display = 'block';
+    } else {
+      formCard.classList.remove('collapsed');
+      btnToggleForm.style.display = 'none';
+    }
+  }
+
   function bindStaticEvents() {
     document.getElementById('btnAdd').addEventListener('click', addEvent);
     notifBanner.addEventListener('click', requestNotifications);
+
+    btnToggleForm.addEventListener('click', function() {
+      formCard.classList.toggle('collapsed');
+    });
 
     var typeChips = document.querySelectorAll('.type-chip');
     for (var i = 0; i < typeChips.length; i++) {
@@ -868,6 +907,7 @@ header h1 { font-size: 1.8rem; }
   }
 
   function renderEvents() {
+    updateFormVisibility();
     if (events.length === 0) {
       eventsSection.style.display = 'none';
       emptyState.style.display = 'block';
