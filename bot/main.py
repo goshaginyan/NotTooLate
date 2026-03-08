@@ -572,6 +572,31 @@ async def post_init(app: Application) -> None:
     logger.info("Bot commands and menu button configured.")
 
 
+# ── Daily reminders ──────────────────────────────────────────────────
+
+async def _send_reminders(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send reminders for events happening today or in 7 days."""
+    for user_id in storage.get_all_user_ids():
+        events = storage.get_events(user_id)
+        for e in events:
+            days = _days_until(e["day"], e["month"])
+            emoji = TYPE_EMOJI.get(e["type"], "⭐")
+            name = _html(e["name"])
+            label = TYPE_LABEL.get(e["type"], e["type"])
+
+            if days == 0:
+                text = f"🎉 <b>Сегодня</b> {_html(label).lower()} — {emoji} <b>{name}</b>!\nНе забудьте поздравить!"
+            elif days == 7:
+                text = f"📅 Через неделю {_html(label).lower()} — {emoji} <b>{name}</b>\nУспейте подготовиться!"
+            else:
+                continue
+
+            try:
+                await ctx.bot.send_message(user_id, text, parse_mode="HTML")
+            except Exception as exc:
+                logger.warning("Failed to send reminder to %s: %s", user_id, exc)
+
+
 # ── Standalone cancel (outside conversations) ────────────────────────
 
 async def cancel_standalone(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -682,6 +707,15 @@ async def run() -> None:
         logger.info("Web API listening on port %d", web_port)
 
         await bot_app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+
+        # Schedule daily reminders at 09:00 Moscow time
+        tz = datetime.timezone(datetime.timedelta(hours=3))
+        bot_app.job_queue.run_daily(
+            _send_reminders,
+            time=datetime.time(hour=9, minute=0, tzinfo=tz),
+            name="daily_reminders",
+        )
+        logger.info("Daily reminders scheduled at 09:00 MSK")
 
         # Run until interrupted
         stop_event = asyncio.Event()

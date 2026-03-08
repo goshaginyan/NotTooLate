@@ -78,3 +78,16 @@ def delete_event(user_id: int, event_id: int) -> bool:
         return False
     _save(user_id, new)
     return True
+
+
+def get_all_user_ids() -> list[int]:
+    """Return all user IDs that have data files."""
+    if not DATA_DIR.exists():
+        return []
+    ids = []
+    for f in DATA_DIR.glob("*.json"):
+        try:
+            ids.append(int(f.stem))
+        except ValueError:
+            pass
+    return ids
