@@ -1,11 +1,21 @@
 """Per-user JSON file storage for Telegram bot dates."""
 
+import asyncio
 import json
 import os
 import time
 from pathlib import Path
 
 DATA_DIR = Path(__file__).parent / "data"
+
+# Per-user locks to prevent concurrent writes to the same file
+_locks: dict[int, asyncio.Lock] = {}
+
+
+def _get_lock(user_id: int) -> asyncio.Lock:
+    if user_id not in _locks:
+        _locks[user_id] = asyncio.Lock()
+    return _locks[user_id]
 
 
 def _user_file(user_id: int) -> Path:

@@ -529,6 +529,35 @@ header h1 { font-size: 1.8rem; }
 (function() {
   "use strict";
 
+  /* ── Telegram Mini App detection ── */
+  var tgWebApp = window.Telegram && window.Telegram.WebApp;
+  var initData = tgWebApp ? tgWebApp.initData : '';
+  var isMiniApp = !!initData;
+
+  /* API base URL: derived from current origin when in Mini App context */
+  var API_BASE = '';
+  if (isMiniApp) {
+    API_BASE = window.location.origin;
+    tgWebApp.ready();
+    tgWebApp.expand();
+  }
+
+  /* ── API client (Mini App mode) ── */
+  function apiRequest(method, path, body) {
+    var opts = {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Telegram-Init-Data': initData
+      }
+    };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch(API_BASE + path, opts).then(function(r) {
+      if (!r.ok) return r.text().then(function(t) { throw new Error(t); });
+      return r.json();
+    });
+  }
+
   /* ── Storage ── */
   var storageOk = false;
   try { localStorage.setItem('_t', '1'); localStorage.removeItem('_t'); storageOk = true; } catch(e) {}
@@ -695,7 +724,9 @@ header h1 { font-size: 1.8rem; }
 
   /* ── State ── */
   var events = [];
-  try { events = JSON.parse(storeGet('reminder_events') || '[]'); } catch(e) { events = []; }
+  if (!isMiniApp) {
+    try { events = JSON.parse(storeGet('reminder_events') || '[]'); } catch(e) { events = []; }
+  }
   var currentType = 'birthday';
 
   /* ── DOM refs ── */
@@ -765,6 +796,16 @@ header h1 { font-size: 1.8rem; }
     applyLang();
     startNotificationCheck();
     bindStaticEvents();
+    if (isMiniApp) loadEventsFromApi();
+  }
+
+  function loadEventsFromApi() {
+    apiRequest('GET', '/api/events').then(function(data) {
+      events = data;
+      renderEvents();
+    }).catch(function(err) {
+      showToast('Error loading events');
+    });
   }
 
   function updateFormVisibility() {
@@ -874,21 +915,41 @@ header h1 { font-size: 1.8rem; }
       return;
     }
 
-    events.push({ id: Date.now(), name: name, day: day, month: month, type: currentType });
-    save();
-    renderEvents();
-    nameInput.value = '';
-    showToast('\u2713 ' + name + ' \u2014 ' + day + ' ' + t('monthsFull')[month - 1]);
+    if (isMiniApp) {
+      apiRequest('POST', '/api/events', { name: name, day: day, month: month, type: currentType })
+        .then(function(event) {
+          events.push(event);
+          renderEvents();
+          nameInput.value = '';
+          showToast('\u2713 ' + name + ' \u2014 ' + day + ' ' + t('monthsFull')[month - 1]);
+        })
+        .catch(function() { showToast('Error adding event'); });
+    } else {
+      events.push({ id: Date.now(), name: name, day: day, month: month, type: currentType });
+      save();
+      renderEvents();
+      nameInput.value = '';
+      showToast('\u2713 ' + name + ' \u2014 ' + day + ' ' + t('monthsFull')[month - 1]);
+    }
   }
 
   function removeEvent(id) {
-    events = events.filter(function(e) { return e.id !== id; });
-    save();
-    renderEvents();
+    if (isMiniApp) {
+      apiRequest('DELETE', '/api/events/' + id)
+        .then(function() {
+          events = events.filter(function(e) { return e.id !== id; });
+          renderEvents();
+        })
+        .catch(function() { showToast('Error deleting event'); });
+    } else {
+      events = events.filter(function(e) { return e.id !== id; });
+      save();
+      renderEvents();
+    }
   }
 
   function save() {
-    storeSet('reminder_events', JSON.stringify(events));
+    if (!isMiniApp) storeSet('reminder_events', JSON.stringify(events));
   }
 
   function daysUntil(day, month) {
