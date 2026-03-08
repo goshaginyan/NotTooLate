@@ -9,6 +9,7 @@ import hmac
 import json
 import logging
 import os
+from pathlib import Path
 from urllib.parse import parse_qs, unquote
 
 from aiohttp import web
@@ -196,6 +197,15 @@ async def delete_event(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+# ── Mini App static serving ──────────────────────────────────────────
+
+MINIAPP_DIR = Path(__file__).parent / "miniapp"
+
+
+async def serve_miniapp(request: web.Request) -> web.FileResponse:
+    return web.FileResponse(MINIAPP_DIR / "index.html")
+
+
 # ── App factory ──────────────────────────────────────────────────────
 
 def create_app(bot_token: str) -> web.Application:
@@ -203,6 +213,7 @@ def create_app(bot_token: str) -> web.Application:
         cors_middleware,
         _make_auth_middleware(bot_token),
     ])
+    app.router.add_get("/", serve_miniapp)
     app.router.add_get("/api/events", list_events)
     app.router.add_post("/api/events", create_event)
     app.router.add_put("/api/events/{id}", update_event)
