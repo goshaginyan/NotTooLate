@@ -238,6 +238,7 @@ async def cmd_edit(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
+    await update.message.reply_text("✏️ Редактирование", reply_markup=cancel_keyboard())
     events.sort(key=lambda e: _days_until(e["day"], e["month"]))
     keyboard = []
     for e in events:
@@ -246,7 +247,7 @@ async def cmd_edit(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         keyboard.append([InlineKeyboardButton(label, callback_data=f"edit:{e['id']}")])
 
     await update.message.reply_text(
-        "✏️ Выберите дату для редактирования:",
+        "Выберите дату:",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
@@ -262,6 +263,7 @@ async def cmd_delete(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
+    await update.message.reply_text("🗑 Удаление", reply_markup=cancel_keyboard())
     events.sort(key=lambda e: _days_until(e["day"], e["month"]))
     keyboard = []
     for e in events:
@@ -269,7 +271,7 @@ async def cmd_delete(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         label = f'{emoji} {e["name"]} — {e["day"]:02d}.{e["month"]:02d}'
         keyboard.append([InlineKeyboardButton(label, callback_data=f"del:{e['id']}")])
     await update.message.reply_text(
-        "🗑 Выберите дату для удаления:",
+        "Выберите дату:",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
@@ -360,6 +362,7 @@ async def edit_field_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
 
 async def add_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     ctx.user_data["new_event"] = {}
+    await update.message.reply_text("➕ Добавление даты", reply_markup=cancel_keyboard())
     await update.message.reply_text(
         "🏷 Выберите <b>тип</b> события:",
         parse_mode="HTML",
@@ -569,6 +572,13 @@ async def post_init(app: Application) -> None:
     logger.info("Bot commands and menu button configured.")
 
 
+# ── Standalone cancel (outside conversations) ────────────────────────
+
+async def cancel_standalone(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle Cancel button press outside of any conversation."""
+    await update.message.reply_text("↩️ Отменено.", reply_markup=main_keyboard())
+
+
 # ── Main ─────────────────────────────────────────────────────────────
 
 _CANCEL_FILTERS = filters.Text([BTN_CANCEL])
@@ -637,6 +647,9 @@ def _build_bot_app(token: str) -> Application:
     app.add_handler(MessageHandler(filters.Text([BTN_EDIT]), cmd_edit))
     app.add_handler(MessageHandler(filters.Text([BTN_DELETE]), cmd_delete))
     app.add_handler(MessageHandler(filters.Text([BTN_HELP]), cmd_help))
+    # Standalone cancel (outside conversations)
+    app.add_handler(MessageHandler(filters.Text([BTN_CANCEL]), cancel_standalone))
+    app.add_handler(CommandHandler("cancel", cancel_standalone))
     app.add_handler(CallbackQueryHandler(edit_callback, pattern=r"^edit:"))
     app.add_handler(CallbackQueryHandler(delete_callback, pattern=r"^del:"))
     app.add_handler(CallbackQueryHandler(delete_confirm_callback, pattern=r"^delconfirm:"))
