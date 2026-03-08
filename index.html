@@ -383,8 +383,27 @@ opacity: 0;
 transition: all 0.2s;
 }
 
-.event-card:hover .event-delete { opacity: 1; }
+.event-card:hover .event-delete, .event-card:hover .event-edit { opacity: 1; }
 .event-delete:hover { background: rgba(232,80,80,0.12); color: var(--danger); }
+
+.event-edit {
+flex-shrink: 0;
+width: 32px;
+height: 32px;
+border-radius: 8px;
+border: none;
+background: transparent;
+color: var(--text-dim);
+cursor: pointer;
+display: flex;
+align-items: center;
+justify-content: center;
+opacity: 0;
+transition: all 0.2s;
+}
+.event-edit:hover { background: rgba(240,160,80,0.12); color: var(--accent); }
+
+.event-actions { display: flex; gap: 2px; flex-shrink: 0; }
 
 .notif-banner {
 background: #1a1a28;
@@ -616,6 +635,10 @@ header h1 { font-size: 1.8rem; }
       notifBody: 'Теперь вы будете получать напоминания о важных датах!',
       toastEmpty: 'Укажите название',
       deleteTitle: 'Удалить',
+      editTitle: 'Редактировать',
+      btnSave: 'Сохранить',
+      formTitleEdit: 'Редактирование',
+      btnCancelEdit: 'Отмена',
       today: 'Сегодня! 🎉',
       tomorrow: 'Завтра',
       inDaysFew: 'через {n} дня',
@@ -674,6 +697,10 @@ header h1 { font-size: 1.8rem; }
       notifBody: 'You will now receive reminders about important dates!',
       toastEmpty: 'Enter a name',
       deleteTitle: 'Delete',
+      editTitle: 'Edit',
+      btnSave: 'Save',
+      formTitleEdit: 'Edit date',
+      btnCancelEdit: 'Cancel',
       today: 'Today! 🎉',
       tomorrow: 'Tomorrow',
       inDaysFew: 'in {n} days',
@@ -728,6 +755,7 @@ header h1 { font-size: 1.8rem; }
     try { events = JSON.parse(storeGet('reminder_events') || '[]'); } catch(e) { events = []; }
   }
   var currentType = 'birthday';
+  var editingId = null;
 
   /* ── DOM refs ── */
   var nameInput = document.getElementById('nameInput');
@@ -809,6 +837,7 @@ header h1 { font-size: 1.8rem; }
   }
 
   function updateFormVisibility() {
+    if (editingId !== null) return;
     if (events.length > 0) {
       formCard.classList.add('collapsed');
       btnToggleForm.style.display = 'block';
@@ -823,6 +852,7 @@ header h1 { font-size: 1.8rem; }
     notifBanner.addEventListener('click', requestNotifications);
 
     btnToggleForm.addEventListener('click', function() {
+      if (editingId !== null) { cancelEdit(); return; }
       formCard.classList.toggle('collapsed');
     });
 
@@ -905,6 +935,8 @@ header h1 { font-size: 1.8rem; }
   }
 
   function addEvent() {
+    if (editingId !== null) { saveEdit(); return; }
+
     var name = nameInput.value.trim();
     var day = parseInt(daySelect.value, 10);
     var month = parseInt(monthSelect.value, 10);
@@ -931,6 +963,84 @@ header h1 { font-size: 1.8rem; }
       nameInput.value = '';
       showToast('\u2713 ' + name + ' \u2014 ' + day + ' ' + t('monthsFull')[month - 1]);
     }
+  }
+
+  function startEdit(id) {
+    var ev = null;
+    for (var i = 0; i < events.length; i++) {
+      if (events[i].id === id) { ev = events[i]; break; }
+    }
+    if (!ev) return;
+
+    editingId = id;
+    nameInput.value = ev.name;
+    daySelect.value = ev.day;
+    monthSelect.value = ev.month;
+
+    // Select type chip
+    var chips = document.querySelectorAll('.type-chip');
+    for (var j = 0; j < chips.length; j++) {
+      var isMatch = chips[j].getAttribute('data-type') === ev.type;
+      chips[j].classList.toggle('active', isMatch);
+      if (isMatch) currentType = ev.type;
+    }
+    renderSuggestions();
+
+    // Show form in edit mode
+    formCard.classList.remove('collapsed');
+    btnToggleForm.style.display = 'none';
+    document.getElementById('formTitle').textContent = t('formTitleEdit');
+    document.getElementById('btnAdd').textContent = t('btnSave');
+    nameInput.focus();
+  }
+
+  function saveEdit() {
+    var name = nameInput.value.trim();
+    var day = parseInt(daySelect.value, 10);
+    var month = parseInt(monthSelect.value, 10);
+
+    if (!name) {
+      showToast(t('toastEmpty'));
+      nameInput.focus();
+      return;
+    }
+
+    var fields = { name: name, day: day, month: month, type: currentType };
+
+    if (isMiniApp) {
+      apiRequest('PUT', '/api/events/' + editingId, fields)
+        .then(function(updated) {
+          for (var i = 0; i < events.length; i++) {
+            if (events[i].id === editingId) { events[i] = updated; break; }
+          }
+          cancelEdit();
+          renderEvents();
+          showToast('\u2713 ' + name);
+        })
+        .catch(function() { showToast('Error saving event'); });
+    } else {
+      for (var i = 0; i < events.length; i++) {
+        if (events[i].id === editingId) {
+          events[i].name = name;
+          events[i].day = day;
+          events[i].month = month;
+          events[i].type = currentType;
+          break;
+        }
+      }
+      save();
+      cancelEdit();
+      renderEvents();
+      showToast('\u2713 ' + name);
+    }
+  }
+
+  function cancelEdit() {
+    editingId = null;
+    nameInput.value = '';
+    document.getElementById('formTitle').textContent = t('formTitle');
+    document.getElementById('btnAdd').textContent = t('btnAdd');
+    updateFormVisibility();
   }
 
   function removeEvent(id) {
@@ -1006,11 +1116,26 @@ header h1 { font-size: 1.8rem; }
             '<div class="event-name">' + escHtml(e.name) + '</div>' +
             '<div class="event-meta">' + typeLabel + ' \u00B7 <span class="days-left">' + daysLeftText(dl) + '</span></div>' +
           '</div>' +
-          '<button class="event-delete" data-del="' + e.id + '" title="' + t('deleteTitle') + '">' +
-            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
-          '</button>';
+          '<div class="event-actions">' +
+            '<button class="event-edit" data-edit="' + e.id + '" title="' + t('editTitle') + '">' +
+              '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' +
+            '</button>' +
+            '<button class="event-delete" data-del="' + e.id + '" title="' + t('deleteTitle') + '">' +
+              '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
+            '</button>' +
+          '</div>';
         eventsList.appendChild(card);
       })(sorted[i]);
+    }
+
+    var editBtns = eventsList.querySelectorAll('[data-edit]');
+    for (var k = 0; k < editBtns.length; k++) {
+      (function(btn) {
+        btn.addEventListener('click', function(ev) {
+          ev.stopPropagation();
+          startEdit(parseInt(btn.getAttribute('data-edit'), 10));
+        });
+      })(editBtns[k]);
     }
 
     var delBtns = eventsList.querySelectorAll('[data-del]');
