@@ -708,14 +708,14 @@ async def run() -> None:
 
         await bot_app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
 
-        # Schedule daily reminders at 09:00 Moscow time
+        # Schedule daily reminders at 22:00 Moscow time
         tz = datetime.timezone(datetime.timedelta(hours=3))
         bot_app.job_queue.run_daily(
             _send_reminders,
-            time=datetime.time(hour=9, minute=0, tzinfo=tz),
+            time=datetime.time(hour=22, minute=0, tzinfo=tz),
             name="daily_reminders",
         )
-        logger.info("Daily reminders scheduled at 09:00 MSK")
+        logger.info("Daily reminders scheduled at 22:00 MSK")
 
         # Run until interrupted
         stop_event = asyncio.Event()
