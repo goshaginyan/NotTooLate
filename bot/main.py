@@ -575,24 +575,30 @@ async def post_init(app: Application) -> None:
 # ── Daily reminders ──────────────────────────────────────────────────
 
 async def _send_reminders(ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send reminders for events happening today or in 7 days."""
-    for user_id in storage.get_all_user_ids():
+    """Send reminders for events happening today, tomorrow, or in 7 days."""
+    user_ids = storage.get_all_user_ids()
+    logger.info("Reminder check: %d users", len(user_ids))
+
+    for user_id in user_ids:
         events = storage.get_events(user_id)
         for e in events:
             days = _days_until(e["day"], e["month"])
             emoji = TYPE_EMOJI.get(e["type"], "⭐")
             name = _html(e["name"])
-            label = TYPE_LABEL.get(e["type"], e["type"])
+            label = _html(TYPE_LABEL.get(e["type"], e["type"])).lower()
 
             if days == 0:
-                text = f"🎉 <b>Сегодня</b> {_html(label).lower()} — {emoji} <b>{name}</b>!\nНе забудьте поздравить!"
+                text = f"🎉 <b>Сегодня</b> {label} — {emoji} <b>{name}</b>!\nНе забудьте поздравить!"
+            elif days == 1:
+                text = f"🔔 <b>Завтра</b> {label} — {emoji} <b>{name}</b>\nНе забудьте поздравить!"
             elif days == 7:
-                text = f"📅 Через неделю {_html(label).lower()} — {emoji} <b>{name}</b>\nУспейте подготовиться!"
+                text = f"📅 Через неделю {label} — {emoji} <b>{name}</b>\nУспейте подготовиться!"
             else:
                 continue
 
             try:
                 await ctx.bot.send_message(user_id, text, parse_mode="HTML")
+                logger.info("Reminder sent to %s: %s (in %d days)", user_id, e["name"], days)
             except Exception as exc:
                 logger.warning("Failed to send reminder to %s: %s", user_id, exc)
 
@@ -708,14 +714,13 @@ async def run() -> None:
 
         await bot_app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
 
-        # Schedule daily reminders at 22:00 Moscow time
-        tz = datetime.timezone(datetime.timedelta(hours=3))
-        bot_app.job_queue.run_daily(
+        # TEST: send reminders 60 seconds after startup
+        bot_app.job_queue.run_once(
             _send_reminders,
-            time=datetime.time(hour=22, minute=0, tzinfo=tz),
-            name="daily_reminders",
+            when=60,
+            name="test_reminders",
         )
-        logger.info("Daily reminders scheduled at 22:00 MSK")
+        logger.info("TEST: reminders will fire in 60 seconds")
 
         # Run until interrupted
         stop_event = asyncio.Event()
