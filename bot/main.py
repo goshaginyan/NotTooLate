@@ -576,13 +576,20 @@ async def post_init(app: Application) -> None:
 
 async def _send_reminders(ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Send reminders for events happening today, tomorrow, or in 7 days."""
+    data_dir = storage.DATA_DIR
+    logger.info("Reminder check: data_dir=%s exists=%s", data_dir, data_dir.exists())
+    if data_dir.exists():
+        logger.info("Data files: %s", list(data_dir.glob("*.json")))
+
     user_ids = storage.get_all_user_ids()
-    logger.info("Reminder check: %d users", len(user_ids))
+    logger.info("Reminder check: %d users found", len(user_ids))
 
     for user_id in user_ids:
         events = storage.get_events(user_id)
+        logger.info("User %s: %d events", user_id, len(events))
         for e in events:
             days = _days_until(e["day"], e["month"])
+            logger.info("  Event %s: day=%d month=%d days_until=%d", e["name"], e["day"], e["month"], days)
             emoji = TYPE_EMOJI.get(e["type"], "⭐")
             name = _html(e["name"])
             label = _html(TYPE_LABEL.get(e["type"], e["type"])).lower()
