@@ -618,49 +618,56 @@ async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     msg = update.message
     await msg.reply_text("🎙 Распознаю голосовое...")
 
-    voice_file = await msg.voice.get_file()
-    voice_bytes = await voice_file.download_as_bytearray()
+    try:
+        voice_file = await msg.voice.get_file()
+        voice_bytes = await voice_file.download_as_bytearray()
 
-    text = await voice.transcribe(bytes(voice_bytes))
-    if not text:
+        text = await voice.transcribe(bytes(voice_bytes))
+        if not text:
+            await msg.reply_text(
+                "⚠️ Не удалось распознать голосовое сообщение.",
+                reply_markup=main_keyboard(),
+            )
+            return
+
+        await msg.reply_text(f"📝 <i>{_html(text)}</i>", parse_mode="HTML")
+
+        data = await voice.parse_event(text)
+        if not data:
+            await msg.reply_text(
+                "⚠️ Не удалось извлечь данные.\nПопробуйте ещё раз, например:\n"
+                "<i>«День рождения мамы пятнадцатого июня»</i>",
+                parse_mode="HTML",
+                reply_markup=main_keyboard(),
+            )
+            return
+
+        items = data if isinstance(data, list) else [data]
+        created = []
+        for item in items:
+            event = storage.add_event(
+                user_id=msg.from_user.id,
+                name=item.get("name", ""),
+                day=item.get("day", 1),
+                month=item.get("month", 1),
+                event_type=item.get("type", "other"),
+            )
+            created.append(event)
+
+        lines = [_format_event(e) for e in created]
+        count = len(created)
+        word = "дата" if count == 1 else "даты" if count < 5 else "дат"
         await msg.reply_text(
-            "⚠️ Не удалось распознать голосовое сообщение.",
-            reply_markup=main_keyboard(),
-        )
-        return
-
-    await msg.reply_text(f"📝 <i>{_html(text)}</i>", parse_mode="HTML")
-
-    data = await voice.parse_event(text)
-    if not data:
-        await msg.reply_text(
-            "⚠️ Не удалось извлечь данные.\nПопробуйте ещё раз, например:\n"
-            "<i>«День рождения мамы пятнадцатого июня»</i>",
+            f"✅ Добавлено {count} {word}!\n\n" + "\n\n".join(lines),
             parse_mode="HTML",
             reply_markup=main_keyboard(),
         )
-        return
-
-    items = data if isinstance(data, list) else [data]
-    created = []
-    for item in items:
-        event = storage.add_event(
-            user_id=msg.from_user.id,
-            name=item.get("name", ""),
-            day=item.get("day", 1),
-            month=item.get("month", 1),
-            event_type=item.get("type", "other"),
+    except Exception:
+        logger.exception("Voice handler error")
+        await msg.reply_text(
+            "⚠️ Ошибка при обработке голосового сообщения.",
+            reply_markup=main_keyboard(),
         )
-        created.append(event)
-
-    lines = [_format_event(e) for e in created]
-    count = len(created)
-    word = "дата" if count == 1 else "даты" if count < 5 else "дат"
-    await msg.reply_text(
-        f"✅ Добавлено {count} {word}!\n\n" + "\n\n".join(lines),
-        parse_mode="HTML",
-        reply_markup=main_keyboard(),
-    )
 
 
 # ── Standalone cancel (outside conversations) ────────────────────────

@@ -64,10 +64,13 @@ async def parse_event(text: str) -> dict | list[dict] | None:
     )
     raw = resp.choices[0].message.content.strip()
     logger.info("GPT parse_event raw: %s", raw)
+    # Strip markdown code block wrapper if present
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
-        logger.warning("Failed to parse GPT response as JSON")
+        logger.warning("Failed to parse GPT response as JSON: %s", raw)
         return None
     if isinstance(data, dict) and "type" in data and "name" in data:
         return data
