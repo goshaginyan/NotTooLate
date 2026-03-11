@@ -688,10 +688,11 @@ async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not storage.is_premium(uid) and remaining >= 0:
             text_msg += f"\n\n🎙 Осталось голосовых: {remaining}/{VOICE_FREE_LIMIT}"
         await msg.reply_text(text_msg, parse_mode="HTML", reply_markup=main_keyboard())
-    except Exception:
+    except Exception as exc:
         logger.exception("Voice handler error")
         await msg.reply_text(
-            "⚠️ Ошибка при обработке голосового сообщения.",
+            f"⚠️ Ошибка: <code>{_html(str(exc))}</code>",
+            parse_mode="HTML",
             reply_markup=main_keyboard(),
         )
 
