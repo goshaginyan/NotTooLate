@@ -613,9 +613,33 @@ async def _send_reminders(ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 # ── Voice message handler ─────────────────────────────────────────────
 
+VOICE_FREE_LIMIT = 5
+VOICE_MAX_DURATION = 60  # seconds
+
+
 async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle voice message: transcribe via Whisper, parse event via GPT."""
     msg = update.message
+    uid = msg.from_user.id
+
+    # Check duration
+    if msg.voice.duration > VOICE_MAX_DURATION:
+        await msg.reply_text(
+            f"⚠️ Голосовое сообщение слишком длинное (макс. {VOICE_MAX_DURATION} сек).",
+            reply_markup=main_keyboard(),
+        )
+        return
+
+    # Check free limit
+    if not storage.is_premium(uid) and storage.get_voice_count(uid) >= VOICE_FREE_LIMIT:
+        await msg.reply_text(
+            f"🔒 Бесплатный лимит ({VOICE_FREE_LIMIT} голосовых) исчерпан.\n\n"
+            "Для безлимитного доступа к голосовому вводу — "
+            "свяжитесь с @goshaginyan.",
+            reply_markup=main_keyboard(),
+        )
+        return
+
     await msg.reply_text("🎙 Распознаю голосовое...")
 
     try:
@@ -646,7 +670,7 @@ async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         created = []
         for item in items:
             event = storage.add_event(
-                user_id=msg.from_user.id,
+                user_id=uid,
                 name=item.get("name", ""),
                 day=item.get("day", 1),
                 month=item.get("month", 1),
@@ -654,14 +678,16 @@ async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             )
             created.append(event)
 
+        storage.increment_voice_count(uid)
+
         lines = [_format_event(e) for e in created]
         count = len(created)
         word = "дата" if count == 1 else "даты" if count < 5 else "дат"
-        await msg.reply_text(
-            f"✅ Добавлено {count} {word}!\n\n" + "\n\n".join(lines),
-            parse_mode="HTML",
-            reply_markup=main_keyboard(),
-        )
+        remaining = VOICE_FREE_LIMIT - storage.get_voice_count(uid)
+        text_msg = f"✅ Добавлено {count} {word}!\n\n" + "\n\n".join(lines)
+        if not storage.is_premium(uid) and remaining >= 0:
+            text_msg += f"\n\n🎙 Осталось голосовых: {remaining}/{VOICE_FREE_LIMIT}"
+        await msg.reply_text(text_msg, parse_mode="HTML", reply_markup=main_keyboard())
     except Exception:
         logger.exception("Voice handler error")
         await msg.reply_text(
