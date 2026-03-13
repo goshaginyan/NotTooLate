@@ -22,6 +22,7 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
+    LabeledPrice,
     MenuButtonCommands,
     ReplyKeyboardMarkup,
     Update,
@@ -33,6 +34,7 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler,
     MessageHandler,
+    PreCheckoutQueryHandler,
     filters,
 )
 
@@ -558,6 +560,77 @@ async def fallback_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
+# ── Payments (Telegram Stars) ─────────────────────────────────────────
+
+
+async def cmd_premium(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show premium status or send invoice."""
+    uid = update.message.from_user.id
+    if storage.is_premium(uid):
+        await update.message.reply_text(
+            "⭐ У вас уже активирован безлимитный голосовой ввод!",
+            reply_markup=main_keyboard(),
+        )
+        return
+    used = storage.get_voice_count(uid)
+    remaining = max(0, VOICE_FREE_LIMIT - used)
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton(
+            f"⭐ Купить — {PREMIUM_PRICE_STARS} Stars",
+            callback_data="buy_premium",
+        ),
+    ]])
+    await update.message.reply_text(
+        f"🎙 <b>Голосовой ввод</b>\n\n"
+        f"Использовано: {used}/{VOICE_FREE_LIMIT} бесплатных\n"
+        f"Осталось: {remaining}\n\n"
+        f"Безлимитный доступ — <b>{PREMIUM_PRICE_STARS} Stars</b> (разовая покупка).",
+        parse_mode="HTML",
+        reply_markup=kb,
+    )
+
+
+async def buy_premium_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send Stars invoice when user taps buy button."""
+    query = update.callback_query
+    await query.answer()
+    await ctx.bot.send_invoice(
+        chat_id=query.message.chat_id,
+        title="Безлимитный голосовой ввод",
+        description="Безлимитное распознавание голосовых сообщений для добавления дат",
+        payload=PREMIUM_PAYLOAD,
+        currency="XTR",
+        prices=[LabeledPrice("Безлимитный голосовой ввод", PREMIUM_PRICE_STARS)],
+    )
+
+
+async def pre_checkout(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Approve pre-checkout query for Stars payment."""
+    query = update.pre_checkout_query
+    if query.invoice_payload == PREMIUM_PAYLOAD:
+        await query.answer(ok=True)
+    else:
+        await query.answer(ok=False, error_message="Неизвестный платёж")
+
+
+async def successful_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Grant premium after successful Stars payment."""
+    payment = update.message.successful_payment
+    if payment.invoice_payload == PREMIUM_PAYLOAD:
+        uid = update.message.from_user.id
+        storage.set_premium(uid)
+        logger.info(
+            "Premium activated for user %d (charge_id=%s)",
+            uid,
+            payment.telegram_payment_charge_id,
+        )
+        await update.message.reply_text(
+            "✅ Безлимитный голосовой ввод активирован!\n\n"
+            "Теперь можете отправлять голосовые сообщения без ограничений.",
+            reply_markup=main_keyboard(),
+        )
+
+
 # ── Post-init: set commands & menu button ────────────────────────────
 
 async def post_init(app: Application) -> None:
@@ -566,6 +639,7 @@ async def post_init(app: Application) -> None:
         BotCommand("list", "Все даты"),
         BotCommand("edit", "Редактировать"),
         BotCommand("delete", "Удалить"),
+        BotCommand("premium", "Голосовой ввод ⭐"),
         BotCommand("help", "Справка"),
     ]
     await app.bot.set_my_commands(commands)
@@ -615,6 +689,8 @@ async def _send_reminders(ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 VOICE_FREE_LIMIT = 5
 VOICE_MAX_DURATION = 60  # seconds
+PREMIUM_PRICE_STARS = 50  # Telegram Stars
+PREMIUM_PAYLOAD = "premium_voice"
 
 
 async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -632,11 +708,16 @@ async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
     # Check free limit
     if not storage.is_premium(uid) and storage.get_voice_count(uid) >= VOICE_FREE_LIMIT:
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton(
+                f"⭐ Безлимит — {PREMIUM_PRICE_STARS} Stars",
+                callback_data="buy_premium",
+            ),
+        ]])
         await msg.reply_text(
             f"🔒 Бесплатный лимит ({VOICE_FREE_LIMIT} голосовых) исчерпан.\n\n"
-            "Для безлимитного доступа к голосовому вводу — "
-            "свяжитесь с @goshaginyan.",
-            reply_markup=main_keyboard(),
+            "Для безлимитного голосового ввода — оформите подписку:",
+            reply_markup=kb,
         )
         return
 
@@ -779,6 +860,12 @@ def _build_bot_app(token: str) -> Application:
     app.add_handler(CallbackQueryHandler(delete_callback, pattern=r"^del:"))
     app.add_handler(CallbackQueryHandler(delete_confirm_callback, pattern=r"^delconfirm:"))
     app.add_handler(CallbackQueryHandler(edit_field_callback, pattern=r"^ef:"))
+
+    # Payments (Telegram Stars)
+    app.add_handler(CommandHandler("premium", cmd_premium))
+    app.add_handler(CallbackQueryHandler(buy_premium_callback, pattern=r"^buy_premium$"))
+    app.add_handler(PreCheckoutQueryHandler(pre_checkout))
+    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment))
 
     # Voice messages
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
