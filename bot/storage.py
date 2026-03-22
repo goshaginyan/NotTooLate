@@ -71,6 +71,17 @@ def update_event(user_id: int, event_id: int, **fields) -> dict | None:
     return None
 
 
+def get_all_user_ids() -> list[int]:
+    """Return all user IDs that have stored events."""
+    if not DATA_DIR.exists():
+        return []
+    return [
+        int(f.stem)
+        for f in DATA_DIR.glob("*.json")
+        if f.stem.isdigit()
+    ]
+
+
 def delete_event(user_id: int, event_id: int) -> bool:
     events = _load(user_id)
     new = [e for e in events if e["id"] != event_id]

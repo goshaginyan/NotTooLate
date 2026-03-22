@@ -40,6 +40,7 @@ from telegram.ext import (
 
 from datepicker import DatePicker
 import storage
+import greetings
 import voice
 from web import create_app
 
@@ -633,6 +634,67 @@ async def successful_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
 
 # ── Post-init: set commands & menu button ────────────────────────────
 
+
+# ── Daily notification job (with personalized greetings) ──────────────
+async def _daily_check(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Iterate all users, find today's events, send notification + greeting."""
+    today = datetime.date.today()
+    for user_id in storage.get_all_user_ids():
+        events = storage.get_events(user_id)
+        for e in events:
+            if e["day"] == today.day and e["month"] == today.month:
+                emoji = TYPE_EMOJI.get(e["type"], "⭐")
+                type_label = TYPE_LABEL.get(e["type"], "Событие")
+                # 1) notification
+                notif_text = (
+                    f"🔔 <b>Сегодня {type_label.lower()}!</b>\n\n"
+                    f"{emoji} <b>{e['name']}</b> — {e['day']:02d}.{e['month']:02d}"
+                )
+                try:
+                    await ctx.bot.send_message(
+                        chat_id=user_id,
+                        text=notif_text,
+                        parse_mode="HTML",
+                    )
+                    # 2) greeting suggestion
+                    greeting = await greetings.generate_greeting(e["name"], e["type"])
+                    await ctx.bot.send_message(
+                        chat_id=user_id,
+                        text=f"💌 <b>Вариант поздравления:</b>\n\n<i>{greeting}</i>",
+                        parse_mode="HTML",
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton(
+                                "🔄 Другой вариант",
+                                callback_data=f"regen_{e['id']}",
+                            )],
+                        ]),
+                    )
+                except Exception:
+                    logger.warning("Could not send notification to user %s", user_id)
+
+
+# ── Regenerate greeting callback (works outside conversation) ────────
+async def regen_greeting_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    q = update.callback_query
+    await q.answer()
+    event_id = int(q.data.split("_", 1)[1])
+    event = storage.get_event(q.from_user.id, event_id)
+    if not event:
+        await q.edit_message_text("⚠️ Событие не найдено.")
+        return
+    greeting = await greetings.generate_greeting(event["name"], event["type"])
+    await q.edit_message_text(
+        f"💌 <b>Вариант поздравления:</b>\n\n<i>{greeting}</i>",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton(
+                "🔄 Другой вариант",
+                callback_data=f"regen_{event['id']}",
+            )],
+        ]),
+    )
+
+
 async def post_init(app: Application) -> None:
     commands = [
         BotCommand("add", "Добавить дату"),
@@ -645,6 +707,12 @@ async def post_init(app: Application) -> None:
     await app.bot.set_my_commands(commands)
     await app.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
     logger.info("Bot commands and menu button configured.")
+    # Schedule daily check at 09:00 Moscow time (UTC+3 → UTC 06:00)
+    app.job_queue.run_daily(
+        _daily_check,
+        time=datetime.time(hour=6, minute=0, second=0),  # 09:00 MSK
+        name="daily_event_check",
+    )
 
 
 # ── Daily reminders ──────────────────────────────────────────────────
@@ -884,6 +952,7 @@ async def run() -> None:
 
     # Build bot application
     bot_app = _build_bot_app(token)
+    bot_app.add_handler(CallbackQueryHandler(regen_greeting_cb, pattern=r"^regen_\d+$"))
 
     # Build web API
     web_app = create_app(token)
