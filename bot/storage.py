@@ -6,7 +6,7 @@ import os
 import time
 from pathlib import Path
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).parent / "data"))
 
 # Per-user locks to prevent concurrent writes to the same file
 _locks: dict[int, asyncio.Lock] = {}
