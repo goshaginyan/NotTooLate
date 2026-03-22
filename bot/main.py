@@ -465,7 +465,7 @@ async def _daily_check(ctx: ContextTypes.DEFAULT_TYPE) -> None:
                         parse_mode="HTML",
                     )
                     # 2) greeting suggestion
-                    greeting = greetings.generate_greeting(e["name"], e["type"])
+                    greeting = await greetings.generate_greeting(e["name"], e["type"])
                     await ctx.bot.send_message(
                         chat_id=user_id,
                         text=f"💌 <b>Вариант поздравления:</b>\n\n<i>{greeting}</i>",
@@ -490,7 +490,7 @@ async def regen_greeting_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
     if not event:
         await q.edit_message_text("⚠️ Событие не найдено.")
         return
-    greeting = greetings.generate_greeting(event["name"], event["type"])
+    greeting = await greetings.generate_greeting(event["name"], event["type"])
     await q.edit_message_text(
         f"💌 <b>Вариант поздравления:</b>\n\n<i>{greeting}</i>",
         parse_mode="HTML",
