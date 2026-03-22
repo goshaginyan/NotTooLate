@@ -32,6 +32,7 @@ from telegram.ext import (
 )
 
 import storage
+import greetings
 
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -442,12 +443,78 @@ async def cmd_cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     return MAIN_MENU
 
 
+# ── Daily notification job ────────────────────────────────────────────
+async def _daily_check(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Iterate all users, find today's events, send notification + greeting."""
+    today = datetime.date.today()
+    for user_id in storage.get_all_user_ids():
+        events = storage.get_events(user_id)
+        for e in events:
+            if e["day"] == today.day and e["month"] == today.month:
+                emoji = TYPE_EMOJI.get(e["type"], "⭐")
+                type_label = TYPE_LABEL.get(e["type"], "Событие")
+                # 1) notification
+                notif_text = (
+                    f"🔔 <b>Сегодня {type_label.lower()}!</b>\n\n"
+                    f"{emoji} <b>{e['name']}</b> — {e['day']:02d}.{e['month']:02d}"
+                )
+                try:
+                    await ctx.bot.send_message(
+                        chat_id=user_id,
+                        text=notif_text,
+                        parse_mode="HTML",
+                    )
+                    # 2) greeting suggestion
+                    greeting = greetings.generate_greeting(e["name"], e["type"])
+                    await ctx.bot.send_message(
+                        chat_id=user_id,
+                        text=f"💌 <b>Вариант поздравления:</b>\n\n<i>{greeting}</i>",
+                        parse_mode="HTML",
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton(
+                                "🔄 Другой вариант",
+                                callback_data=f"regen_{e['id']}",
+                            )],
+                        ]),
+                    )
+                except Exception:
+                    logger.warning("Could not send notification to user %s", user_id)
+
+
+# ── Regenerate greeting callback (works outside conversation) ────────
+async def regen_greeting_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    q = update.callback_query
+    await q.answer()
+    event_id = int(q.data.split("_", 1)[1])
+    event = storage.get_event(q.from_user.id, event_id)
+    if not event:
+        await q.edit_message_text("⚠️ Событие не найдено.")
+        return
+    greeting = greetings.generate_greeting(event["name"], event["type"])
+    await q.edit_message_text(
+        f"💌 <b>Вариант поздравления:</b>\n\n<i>{greeting}</i>",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton(
+                "🔄 Другой вариант",
+                callback_data=f"regen_{event['id']}",
+            )],
+        ]),
+    )
+
+
 # ── Post-init: set bot commands & menu button ────────────────────────
 async def post_init(app: Application) -> None:
     await app.bot.set_my_commands([
         BotCommand("start", "Главное меню"),
         BotCommand("cancel", "Отмена"),
     ])
+    # Schedule daily check at 09:00 Moscow time (UTC+3 → UTC 06:00)
+    app.job_queue.run_daily(
+        _daily_check,
+        time=datetime.time(hour=6, minute=0, second=0),  # 09:00 MSK
+        name="daily_event_check",
+    )
 
 
 # ── Main ─────────────────────────────────────────────────────────────
@@ -510,6 +577,7 @@ def main() -> None:
     )
 
     app.add_handler(conv)
+    app.add_handler(CallbackQueryHandler(regen_greeting_cb, pattern=r"^regen_\d+$"))
 
     logger.info("Bot started — polling…")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
