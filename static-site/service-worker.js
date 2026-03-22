@@ -27,6 +27,11 @@ self.addEventListener('activate', function(e) {
 });
 
 self.addEventListener('fetch', function(e) {
+  // Network-first for API requests — never cache them
+  if (e.request.url.indexOf('/api/') !== -1) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
   e.respondWith(
     caches.match(e.request).then(function(r) {
       return r || fetch(e.request);
