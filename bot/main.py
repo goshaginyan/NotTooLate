@@ -46,6 +46,13 @@ from web import create_app
 
 load_dotenv(Path(__file__).parent / ".env")
 
+ALLOWED_USER_IDS = {int(x) for x in os.getenv("ALLOWED_USER_IDS", "").split(",") if x.strip()}
+
+
+def _is_allowed(user_id: int) -> bool:
+    return not ALLOWED_USER_IDS or user_id in ALLOWED_USER_IDS
+
+
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     level=logging.INFO,
@@ -177,6 +184,9 @@ edit_picker = DatePicker(prefix="edate", show_year=False)
 # ── Command Handlers ─────────────────────────────────────────────────
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_allowed(update.effective_user.id):
+        await update.message.reply_text("Доступ запрещён.")
+        return
     user = update.effective_user
     await update.message.reply_text(
         f"👋 Привет, {_html(user.first_name)}!\n\n"
@@ -365,6 +375,9 @@ async def edit_field_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
 # ── Add conversation ─────────────────────────────────────────────────
 
 async def add_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    if not _is_allowed(update.effective_user.id):
+        await update.message.reply_text("Доступ запрещён.")
+        return ConversationHandler.END
     ctx.user_data["new_event"] = {}
     await update.message.reply_text("➕ Добавление даты", reply_markup=cancel_keyboard())
     await update.message.reply_text(
@@ -763,6 +776,9 @@ PREMIUM_PAYLOAD = "premium_voice"
 
 async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle voice message: transcribe via Whisper, parse event via GPT."""
+    if not _is_allowed(update.effective_user.id):
+        await update.message.reply_text("Доступ запрещён.")
+        return
     msg = update.message
     uid = msg.from_user.id
 
